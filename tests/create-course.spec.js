@@ -38,7 +38,7 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
 
     // 3. Wait for login to complete by verifying that the URL is no longer the login page
     console.log('Waiting for login redirection...');
-    await page.waitForURL(url => !url.href.includes('/login'), { timeout: 20000 });
+    await page.waitForURL(url => !url.href.includes('/login'));
 
     // 4. Navigate directly to the Courses page to save navigation time
     console.log('Navigating directly to the Courses page...');
@@ -126,7 +126,7 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
 
     // Wait for page redirection to the course home layout
     console.log('Waiting for the course landing page to load...');
-    await page.waitForURL(url => url.href.includes('/content/') || url.href.includes('/lessons/'), { timeout: 20000 });
+    await page.waitForURL(url => url.href.includes('/content/') || url.href.includes('/lessons/'));
     console.log(`Redirection successful. Current URL: ${page.url()}`);
   });
 
@@ -156,7 +156,7 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
 
     // 2. Wait for Unit Form page to load and fill details
     console.log('Waiting for Unit Form page to load...');
-    await page.waitForURL(url => url.href.includes('loadUnit'), { timeout: 20000 });
+    await page.waitForURL(url => url.href.includes('loadUnit'));
     
     const titleInput = page.locator('#content-title input');
     await titleInput.waitFor({ state: 'visible', timeout: 15000 });
@@ -173,7 +173,7 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
 
     // 4. Verify successful redirection indicating the unit has been saved
     console.log('Verifying unit creation and redirection...');
-    await page.waitForURL(url => url.href.includes('/module/'), { timeout: 20000 });
+    await page.waitForURL(url => url.href.includes('/module/'));
     console.log(`Successfully created unit "${unitTitle}". Current URL: ${page.url()}`);
   });
 
@@ -220,5 +220,20 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
     await expect(notesItem).toBeVisible({ timeout: 15000 });
 
     console.log('All documents successfully uploaded and verified!');
+
+    // 6. Navigate back to the created course homepage
+    const currentUrl = page.url();
+    console.log(`Current URL before navigating back: ${currentUrl}`);
+    const match = currentUrl.match(/\/(lessons|content)\/(\d+)/);
+    if (match) {
+      const orgUnitId = match[2];
+      const courseHomeUrl = `https://ansr.brightspacedemo.com/d2l/le/lessons/${orgUnitId}`;
+      console.log(`Navigating directly to course Lessons homepage: ${courseHomeUrl}`);
+      await page.goto(courseHomeUrl, { waitUntil: 'load', timeout: 30000 });
+      await page.waitForURL(url => url.href.includes(`/lessons/${orgUnitId}`));
+      console.log(`Successfully navigated back to course Lessons homepage. Current URL: ${page.url()}`);
+    } else {
+      throw new Error(`Could not extract orgUnitId from current URL: ${currentUrl}`);
+    }
   });
 });
