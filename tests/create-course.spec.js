@@ -7,6 +7,7 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
   let page;
   let courseName;
   let courseCode;
+  let unitTitle;
 
   // Initialize a shared browser page context and unique course details
   test.beforeAll(async ({ browser }) => {
@@ -31,7 +32,7 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
 
     // 2. Wait for login inputs and log in
     await page.waitForSelector('#userName', { state: 'visible', timeout: 15000 });
-    await page.waitForTimeout(2000); // Allow time for event listeners to bind
+    await page.waitForTimeout(5000); // Allow time for event listeners to bind
     await page.fill('#userName', 'ansr.A1');
     await page.fill('#password', 'map6PYc!#S?3');
     await page.click('button:has-text("Log In")');
@@ -162,7 +163,7 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
     await titleInput.waitFor({ state: 'visible', timeout: 15000 });
 
     console.log('Filling in unit title...');
-    const unitTitle = `testUnit_${Date.now()}`;
+    unitTitle = `testUnit_${Date.now()}`;
     await titleInput.fill(unitTitle);
 
     // 3. Save the Unit
@@ -207,21 +208,95 @@ test.describe('Brightspace Course and Unit Creation Flow', () => {
 
     // 4. Wait for the upload process to complete.
     console.log('Waiting for the uploaded documents to be processed...');
-    await page.waitForTimeout(15000);
-
-    // 5. Verify the files are successfully uploaded and appear in the sidebar/navigation tree.
-    console.log('Verifying uploaded files in the sidebar/navigation tree...');
-    const documentItem = frame.locator('.navigation-item', { hasText: 'document' }).first();
-    const presentationItem = frame.locator('.navigation-item', { hasText: 'presentation' }).first();
-    const notesItem = frame.locator('.navigation-item', { hasText: 'notes' }).first();
+    await page.waitForTimeout(20000);
     
-    await expect(documentItem).toBeVisible({ timeout: 15000 });
-    await expect(presentationItem).toBeVisible({ timeout: 15000 });
-    await expect(notesItem).toBeVisible({ timeout: 15000 });
+    console.log('Reloading the page to refresh the sidebar...');
+    await page.reload({ waitUntil: 'load', timeout: 30000 });
+    await page.waitForTimeout(5000);
+
+    // 5. Expand the unit in the sidebar navigation tree to make the documents visible
+    console.log(`Clicking the unit "${unitTitle}" in the sidebar to expand...`);
+    const unitItem = frame.locator(`d2l-list-item-nav[label="${unitTitle}"]`).first();
+    await unitItem.waitFor({ state: 'visible', timeout: 15000 });
+    await unitItem.click();
+    await page.waitForTimeout(3000);
+
+    // 6. Verify the files are successfully uploaded and appear in the sidebar/navigation tree.
+    console.log('Verifying uploaded files in the sidebar/navigation tree...');
+    const documentItem = frame.locator('d2l-list-item-nav[label="document"]').first();
+    const presentationItem = frame.locator('d2l-list-item-nav[label="presentation"]').first();
+    const notesItem = frame.locator('d2l-list-item-nav[label="notes"]').first();
+    
+    await expect(documentItem).toBeVisible({ timeout: 20000 });
+    await expect(presentationItem).toBeVisible({ timeout: 20000 });
+    await expect(notesItem).toBeVisible({ timeout: 20000 });
 
     console.log('All documents successfully uploaded and verified!');
+  });
 
-    // 6. Navigate back to the created course homepage
+  test('should select the uploaded document and verify the accessibility score button', async () => {
+    const frame = page.frameLocator('iframe[src*="smart-curriculum"]');
+    const documentItem = frame.locator('d2l-list-item-nav[label="document"]').first();
+
+    console.log('Clicking on the uploaded document in the sidebar...');
+    await documentItem.click();
+
+    console.log('Waiting for accessibility icon/button...');
+    const accessibilityBtn = frame.locator('button.ansr-accessibility-button');
+    await accessibilityBtn.waitFor({ state: 'visible', timeout: 20000 });
+    
+    console.log('Waiting for accessibility score to load...');
+    await expect(accessibilityBtn).not.toBeDisabled({ timeout: 30000 });
+    await expect(accessibilityBtn).toHaveAttribute('title', 'Accessibility score: 100%', { timeout: 15000 });
+  });
+
+  test('should open the accessibility drawer and validate the overview metadata and statistics', async () => {
+    const frame = page.frameLocator('iframe[src*="smart-curriculum"]');
+    const accessibilityBtn = frame.locator('button.ansr-accessibility-button');
+
+    console.log('Clicking accessibility button...');
+    await accessibilityBtn.click();
+
+    console.log('Waiting for accessibility drawer...');
+    await page.waitForTimeout(15000);
+
+    const drawerHeading = page.locator('#drawer-heading');
+    await expect(drawerHeading).toBeVisible({ timeout: 15000 });
+    await expect(drawerHeading).toHaveText('Accessibility+: document.html');
+
+    console.log('Validating accessibility drawer items...');
+    await expect(page.locator('text=document.html').first()).toBeVisible();
+    await expect(page.locator('div:has-text("Title:")').first()).toBeVisible();
+    await expect(page.locator('div:has-text("File Size:")').first()).toBeVisible();
+    await expect(page.locator('text=100%').first()).toBeVisible();
+    await expect(page.locator('[aria-label="24 total checks"]')).toBeVisible();
+    await expect(page.locator('[aria-label="2 passed issues checks"]')).toBeVisible();
+    await expect(page.locator('[aria-label="0 issues failed checks"]')).toBeVisible();
+    await expect(page.locator('[aria-label="22 issues that require manual remediation"]')).toBeVisible();
+  });
+
+  test('should expand the details to verify passed accessibility rules', async () => {
+    console.log('Expanding details...');
+    const expandDetailsBtn = page.locator('[aria-label*="Expand details"]');
+    await expandDetailsBtn.click();
+
+    console.log('Selecting Passed tab...');
+    const passedTab = page.locator('button[role="tab"]:has-text("Passed (2)")');
+    await passedTab.click();
+
+    console.log('Verifying passed check description...');
+    await expect(page.locator('text=WCAG 2.2 (A) SC: 1.3.1 (aria-hidden-body)')).toBeVisible();
+  });
+
+  test('should close the drawer and navigate back to the course homepage', async () => {
+    const drawerHeading = page.locator('#drawer-heading');
+
+    console.log('Closing accessibility drawer...');
+    const closeBtn = page.locator('button[aria-label="close drawer"]');
+    await closeBtn.click();
+    await expect(drawerHeading).toBeHidden();
+
+    // 8. Navigate back to the created course homepage
     const currentUrl = page.url();
     console.log(`Current URL before navigating back: ${currentUrl}`);
     const match = currentUrl.match(/\/(lessons|content)\/(\d+)/);
