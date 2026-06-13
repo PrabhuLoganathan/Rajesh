@@ -6,7 +6,9 @@
   "scripts": {
     "test": "playwright test",
     "test:ui": "playwright test --ui",
-    "test:headed": "playwright test --headed"
+    "test:headed": "playwright test --headed",
+    "test:canvas": "playwright test --headed --config=tests-canvas/playwright.config.js",
+    "test:dsl": "playwright test --headed --config=tests-dsl/playwright.config.js"
   },
   "keywords": [],
   "author": "",
